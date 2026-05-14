@@ -10,9 +10,9 @@ echo [1/5] Checking current branch...
 git branch
 echo.
 
-echo [2/5] Setting proxy (127.0.0.1:10808)...
-set http_proxy=http://127.0.0.1:10808
-set https_proxy=http://127.0.0.1:10808
+echo [2/5] Setting proxy (127.0.0.1:10809)...
+set http_proxy=http://127.0.0.1:10809
+set https_proxy=http://127.0.0.1:10809
 echo Proxy set.
 echo.
 
