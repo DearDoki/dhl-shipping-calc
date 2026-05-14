@@ -22,7 +22,7 @@ echo "提交完成"
 
 echo ""
 echo "===== 步骤5: 推送到 GitHub ====="
-git push -u origin main
+git push -u origin master
 echo "推送完成"
 
 echo ""
