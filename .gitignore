@@ -23,6 +23,11 @@ FUEL_SURCHARGE_SCRAPER.md
 fuel-surcharge-*.png
 fuel-surcharge-debug*.txt
 
+# 临时部署脚本（不需要提交到 GitHub）
+git-setup.sh
+git-push.sh
+push-to-github.bat
+
 # 后端 API（纯前端部署不需要）
 server/
 backend/
