@@ -216,7 +216,7 @@ const ShippingCalculator: React.FC = () => {
                     <span className="font-medium text-gray-900">¥{calculation.baseFreight.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">燃油附加费 ({(DEFAULT_FUEL_SURCHARGE.rate * 100).toFixed(0)}%)</span>
+                    <span className="text-gray-600">燃油附加费 ({(DEFAULT_FUEL_SURCHARGE.rate * 100).toFixed(2)}%)</span>
                     <span className="font-medium text-gray-900">¥{calculation.fuelSurcharge.toFixed(2)}</span>
                   </div>
                 </div>
