@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { AlertCircle, Copy, Check } from 'lucide-react'
 import { calculateShipping, DEFAULT_FUEL_SURCHARGE } from '../data/calculator'
 import { findCountryByName, getAllCountries } from '../data/countries'
@@ -30,8 +30,54 @@ const ShippingCalculator: React.FC = () => {
   const [outputCurrency, setOutputCurrency] = useState<CurrencyCode>('USD')
   const [copied, setCopied] = useState(false)
 
+  const [countryOpen, setCountryOpen] = useState(false)
+  const [countrySearch, setCountrySearch] = useState('')
+  const countryRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (countryRef.current && !countryRef.current.contains(e.target as Node)) {
+        setCountryOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
 
   const allCountries = getAllCountries()
+
+  // 选中后显示：国家名 (分区 X)
+  const selectedDisplay = (() => {
+    if (!selectedCountry || countryOpen) return ''
+    const c = findCountryByName(selectedCountry)
+    return c ? `${c.name} (分区 ${c.partition})` : selectedCountry
+  })()
+
+  const filteredCountries = useMemo(() => {
+    const q = countrySearch.trim()
+    if (!q) return allCountries
+    const lowerQ = q.toLowerCase()
+
+    return allCountries
+      .filter(c =>
+        c.name.includes(q) ||
+        c.name.toLowerCase().includes(lowerQ) ||
+        c.code.toLowerCase().includes(lowerQ)
+      )
+      .sort((a, b) => {
+        // 1. 国家名完全匹配排最前
+        if (a.name === q) return -1
+        if (b.name === q) return 1
+        // 2. 以搜索词开头的排其次
+        const aStarts = a.name.startsWith(q) || a.name.toLowerCase().startsWith(lowerQ)
+        const bStarts = b.name.startsWith(q) || b.name.toLowerCase().startsWith(lowerQ)
+        if (aStarts && !bStarts) return -1
+        if (!aStarts && bStarts) return 1
+        // 3. 其余保持原顺序
+        return 0
+      })
+  }, [countrySearch, allCountries])
 
   const { calculation, error, countryInfo } = useMemo<{
     calculation: ShippingCalculation | null
@@ -123,25 +169,43 @@ const ShippingCalculator: React.FC = () => {
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 目的国家
               </label>
-              <div className="relative">
-                <select
-                  value={selectedCountry}
-                  onChange={(e) => setSelectedCountry(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white text-gray-700 appearance-none cursor-pointer"
-                >
-                  <option value="">-- 请选择国家 --</option>
-                  {allCountries.map((country) => (
-                    <option key={country.name} value={country.name}>
-                      {country.name} (分区 {country.partition})
-                      {country.isRemote ? ' ⚠️偏远' : ''}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </div>
+              <div className="relative" ref={countryRef}>
+                <input
+                  type="text"
+                  value={countryOpen ? countrySearch : selectedDisplay}
+                  placeholder="搜索国家，如：美国 / US"
+                  onChange={(e) => {
+                    setCountrySearch(e.target.value)
+                    setCountryOpen(true)
+                  }}
+                  onFocus={() => setCountryOpen(true)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') setCountryOpen(false)
+                  }}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-gray-700"
+                />
+                {countryOpen && (
+                  <div className="absolute z-10 mt-1 w-full max-h-60 overflow-auto bg-white border border-gray-300 rounded-lg shadow-lg">
+                    {filteredCountries.length === 0 ? (
+                      <div className="px-4 py-3 text-sm text-gray-400">无匹配国家</div>
+                    ) : (
+                      filteredCountries.map((c) => (
+                        <div
+                          key={c.name}
+                          onClick={() => {
+                            setSelectedCountry(c.name)
+                            setCountryOpen(false)
+                            setCountrySearch('')
+                          }}
+                          className="px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 cursor-pointer"
+                        >
+                          {c.name} (分区 {c.partition})
+                          {c.isRemote ? ' ⚠️偏远' : ''}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
