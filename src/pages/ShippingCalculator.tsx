@@ -60,11 +60,11 @@ const ShippingCalculator: React.FC = () => {
     const lowerQ = q.toLowerCase()
 
     return allCountries
-      .filter(c =>
-        c.name.includes(q) ||
-        c.name.toLowerCase().includes(lowerQ) ||
-        c.code.toLowerCase().includes(lowerQ)
-      )
+      .filter(c => {
+        const nameMatch = c.name.toLowerCase().includes(lowerQ)
+        const codeMatch = c.code ? c.code.toLowerCase().includes(lowerQ) : false
+        return nameMatch || codeMatch
+      })
       .sort((a, b) => {
         // 1. 国家名完全匹配排最前
         if (a.name === q) return -1
