@@ -58,7 +58,7 @@ class DHL_FuelSurchargeScraperFixed:
     def safe_print(self, level: str, message: str):
         """安全打印，避免Unicode编码问题"""
         prefix = self.log_prefix.get(level, "[INFO] ")
-        print(f"{prefix}{message}")
+        print(f"{prefix}{message}", flush=True)
     
     def parse_date_range_fixed(self, date_str: str) -> tuple[str, str]:
         """修复版日期范围解析，正确处理跨月情况"""
@@ -237,7 +237,11 @@ class DHL_FuelSurchargeScraperFixed:
             # 启动浏览器（使用已安装的 chromium-1208）
             chromium_path = r"C:\Users\Administrator\AppData\Local\ms-playwright\chromium-1208\chrome-win64\chrome.exe"
             self.safe_print("info", f"使用浏览器: {chromium_path}")
-            browser = await p.chromium.launch(headless=True, executable_path=chromium_path)
+            browser = await p.chromium.launch(
+                headless=True,
+                executable_path=chromium_path,
+                args=['--proxy-server=http://127.0.0.1:10809']
+            )
             page = await browser.new_page()
             
             try:
