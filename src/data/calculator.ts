@@ -8,7 +8,7 @@ export const DEFAULT_FUEL_SURCHARGE: FuelSurcharge = {
   rate: 0.4325, // 43.25% (8月 31-9月 6, 2026)
   validFrom: '2026-08-31',
   validTo: '2026-09-06',
-  lastUpdated: '2026-08-31T13:41:31.659335'
+  lastUpdated: '2026-08-31T13:52:45.444807'
 }
 
 // 旺季费配置（冬季）
