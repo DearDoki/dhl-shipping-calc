@@ -3,12 +3,12 @@
 import { getPriceForWeightAndPartition, calculateVolumetricWeight } from './prices'
 
 // 默认燃油费率（从DHL官网获取）
-// 当前按 9月 21-27, 2026 费率自动更新
+// 当前按 9月 28-10月 4, 2026 费率自动更新
 export const DEFAULT_FUEL_SURCHARGE: FuelSurcharge = {
-  rate: 0.4500, // 45.00% (9月 21-27, 2026)
-  validFrom: '2026-09-21',
-  validTo: '2026-09-27',
-  lastUpdated: '2026-09-21T08:35:31.655646'
+  rate: 0.4625, // 46.25% (9月 28-10月 4, 2026)
+  validFrom: '2026-09-28',
+  validTo: '2026-10-04',
+  lastUpdated: '2026-09-28T08:32:31.965446'
 }
 
 // 旺季费配置（冬季）
