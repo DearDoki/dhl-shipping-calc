@@ -1,1 +1,0 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/components/header.tsx","./src/components/inputform.tsx","./src/components/resultdisplay.tsx","./src/data/calculator.ts","./src/data/countries.ts","./src/data/peaksurcharge.ts","./src/data/prices.ts","./src/pages/shippingcalculator.tsx","./src/types/index.ts"],"version":"5.9.3"}

@@ -34,3 +34,8 @@ backend/
 
 # 工作记忆和计划文件
 .workbuddy/
+
+# tsc -b incremental artifacts
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
