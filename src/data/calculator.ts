@@ -11,21 +11,15 @@ export const DEFAULT_FUEL_SURCHARGE: FuelSurcharge = {
   lastUpdated: '2026-09-28T08:36:02.794577'
 }
 
-// 旺季费配置（冬季）
-export const SEASONAL_SURCHARGE_CONFIG = {
-  enabled: true,
-  name: '冬季附加费',
-  months: [1, 2, 3], // 1月、2月、3月
-  rate: 3.5, // 每公斤3.5元
-  description: '冬季高需求期间的附加费',
-}
+// 旺季附加费见 ./peakSurcharge.ts（按目的地分区计价，75折，2026-10-01 至 2027-02-05）
+// 通过 calculateShipping 的 peakSurchargePerKg 参数传入（折后每公斤金额，0 表示不收）
 
 // 主计算函数
 export const calculateShipping = (
   weight: number,
   partition: number,
   fuelSurchargeRate: number = DEFAULT_FUEL_SURCHARGE.rate,
-  applySeasonal: boolean = false,
+  peakSurchargePerKg: number = 0,
   length?: number,
   width?: number,
   height?: number
@@ -50,14 +44,14 @@ export const calculateShipping = (
   // 计算燃油附加费
   const fuelAmount = baseFreight * fuelSurchargeRate
   
-  // 计算季节性附加费（可选）
-  let seasonalAmount = 0
-  if (applySeasonal) {
-    seasonalAmount = billableWeight * SEASONAL_SURCHARGE_CONFIG.rate
-  }
-  
+  // 旺季附加费（按计费重量 × 折后每公斤费率）
+  const seasonalAmount =
+    peakSurchargePerKg > 0
+      ? Math.round(billableWeight * peakSurchargePerKg * 100) / 100
+      : 0
+
   // 计算总费用
-  // 公式：总运费 = 基础运费 × (1 + 燃油附加费率) + 其他附加费
+  // 公式：总运费 = 基础运费 × (1 + 燃油附加费率) + 旺季附加费
   const total = baseFreight * (1 + fuelSurchargeRate) + seasonalAmount
 
   
@@ -73,12 +67,6 @@ export const calculateShipping = (
       seasonalAmount,
     },
   }
-}
-
-// 检查是否是旺季
-export const isSeasonalPeriod = (date: Date = new Date()): boolean => {
-  const month = date.getMonth() + 1
-  return SEASONAL_SURCHARGE_CONFIG.months.includes(month)
 }
 
 // 格式化货币

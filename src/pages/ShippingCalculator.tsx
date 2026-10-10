@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { AlertCircle, Copy, Check } from 'lucide-react'
 import { calculateShipping, DEFAULT_FUEL_SURCHARGE } from '../data/calculator'
+import { getPeakSurchargePerKg, getPeakRegion, PEAK_SURCHARGE_RATES, isPeakSurchargeActive, PEAK_SURCHARGE_CONFIG } from '../data/peakSurcharge'
 import { findCountryByName, getAllCountries } from '../data/countries'
 import { ShippingCalculation } from '../types'
 
@@ -119,7 +120,8 @@ const ShippingCalculator: React.FC = () => {
       }
     }
 
-    const result = calculateShipping(weightNum, country.partition, DEFAULT_FUEL_SURCHARGE.rate, false)
+    const peakPerKg = isPeakSurchargeActive() ? getPeakSurchargePerKg(country.name) : 0
+    const result = calculateShipping(weightNum, country.partition, DEFAULT_FUEL_SURCHARGE.rate, peakPerKg)
 
     if (!result) {
       return {
@@ -137,6 +139,8 @@ const ShippingCalculator: React.FC = () => {
   }, [selectedCountry, weight])
 
   const isRemote = countryInfo?.isRemote || false
+  const peakActive = isPeakSurchargeActive()
+  const peakOfficialRate = countryInfo && peakActive ? PEAK_SURCHARGE_RATES[getPeakRegion(countryInfo.name)] : 0
   const selectedCurrencyOption = getCurrencyOption(outputCurrency)
   const convertedTotal = calculation ? calculation.total / selectedCurrencyOption.rate : null
 
@@ -283,6 +287,14 @@ const ShippingCalculator: React.FC = () => {
                     <span className="text-gray-600">燃油附加费 ({(DEFAULT_FUEL_SURCHARGE.rate * 100).toFixed(2)}%)</span>
                     <span className="font-medium text-gray-900">¥{calculation.fuelSurcharge.toFixed(2)}</span>
                   </div>
+                  {calculation.seasonalSurcharge > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">
+                        旺季附加费（{peakOfficialRate} 元/kg，享75折）
+                      </span>
+                      <span className="font-medium text-gray-900">¥{calculation.seasonalSurcharge.toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* 总费用 */}
@@ -310,7 +322,7 @@ const ShippingCalculator: React.FC = () => {
                     </button>
                   </div>
                   <p className="mt-2 text-xs text-blue-700">
-                    计算公式：总运费 = 基础运费 × (1 + 燃油附加费)
+                    计算公式：总运费 = 基础运费 × (1 + 燃油附加费){calculation.seasonalSurcharge > 0 ? ' + 旺季附加费' : ''}
                   </p>
                   <div className="mt-3 pt-3 border-t border-blue-200">
                     <p className="text-xs text-gray-600 mb-1">换算总运费（{selectedCurrencyOption.label}）</p>
@@ -328,6 +340,9 @@ const ShippingCalculator: React.FC = () => {
                 {/* 燃油费说明 */}
                 <div className="text-xs text-gray-500 italic pt-2">
                   燃油费有效期：{DEFAULT_FUEL_SURCHARGE.validFrom} 至 {DEFAULT_FUEL_SURCHARGE.validTo}
+                  {peakActive && (
+                    <>（旺季附加费有效期：{PEAK_SURCHARGE_CONFIG.validFrom} 至 {PEAK_SURCHARGE_CONFIG.validTo}，到期自动取消）</>
+                  )}
                 </div>
               </div>
             ) : (
