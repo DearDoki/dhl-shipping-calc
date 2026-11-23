@@ -237,10 +237,20 @@ class DHL_FuelSurchargeScraperFixed:
             # 启动浏览器（使用已安装的 chromium-1208）
             chromium_path = r"C:\Users\Administrator\AppData\Local\ms-playwright\chromium-1208\chrome-win64\chrome.exe"
             self.safe_print("info", f"使用浏览器: {chromium_path}")
+            # 代理可通过环境变量 DHL_SCRAPER_PROXY 控制：
+            #   未设置 -> 默认 http://127.0.0.1:10809（v2ray privoxy）
+            #   "none"/"off"/"" -> 不使用代理（直连）
+            _proxy = os.environ.get("DHL_SCRAPER_PROXY", "http://127.0.0.1:10809").strip()
+            _launch_args = []
+            if _proxy and _proxy.lower() not in ("none", "off", "direct"):
+                _launch_args.append(f"--proxy-server={_proxy}")
+                self.safe_print("info", f"浏览器代理: {_proxy}")
+            else:
+                self.safe_print("warning", "浏览器代理已禁用，使用直连")
             browser = await p.chromium.launch(
                 headless=True,
                 executable_path=chromium_path,
-                args=['--proxy-server=http://127.0.0.1:10809']
+                args=_launch_args
             )
             page = await browser.new_page()
             
@@ -527,13 +537,24 @@ export const DEFAULT_FUEL_SURCHARGE: FuelSurcharge = {{
         self.safe_print("info", "Git Push - 自动推送到 GitHub")
         self.safe_print("info", "=" * 60)
         
-        proxy = "http://127.0.0.1:10809"
+        _push_proxy = os.environ.get("DHL_SCRAPER_PROXY", "http://127.0.0.1:10809").strip()
+        use_proxy = bool(_push_proxy) and _push_proxy.lower() not in ("none", "off", "direct")
         repo_dir = str(self.project_root)
         
-        # 设置环境变量：代理 + git 身份（防万一）
+        # 设置环境变量：代理（仅在启用时） + git 身份（防万一）
         env = os.environ.copy()
-        env["http_proxy"] = proxy
-        env["https_proxy"] = proxy
+        if use_proxy:
+            env["http_proxy"] = _push_proxy
+            env["https_proxy"] = _push_proxy
+            self.safe_print("info", f"git push 代理: {_push_proxy}")
+        else:
+            env.pop("http_proxy", None)
+            env.pop("https_proxy", None)
+            env.pop("HTTP_PROXY", None)
+            env.pop("HTTPS_PROXY", None)
+            self.safe_print("warning", "git push 使用直连（未启用代理）")
+        # 避免 credential selector 在非交互环境弹窗卡死
+        env["GIT_TERMINAL_PROMPT"] = "0"
         
         try:
             # 步骤1: git add（只添加 calculator.ts）
@@ -551,8 +572,8 @@ export const DEFAULT_FUEL_SURCHARGE: FuelSurcharge = {{
                 ["git", "status", "--porcelain"],
                 cwd=repo_dir, capture_output=True, text=True, timeout=30, env=env
             )
-            if not result.stdout.strip():
-                self.safe_print("info", "没有变更需要提交，跳过 push")
+            if not result.stdout.strip() or "calculator.ts" not in result.stdout:
+                self.safe_print("info", "calculator.ts 无变更，跳过 commit/push")
                 return True
             
             # 步骤3: git commit
@@ -569,12 +590,36 @@ export const DEFAULT_FUEL_SURCHARGE: FuelSurcharge = {{
             
             # 步骤4: git push
             self.safe_print("info", "git push origin main ...")
+            push_cmd = ["git"]
+            if use_proxy:
+                push_cmd += [
+                    "-c", f"http.proxy={_push_proxy}",
+                    "-c", "http.sslBackend=openssl",
+                    "-c", "http.sslVerify=false",
+                    "-c", "credential.helper=manager",
+                ]
+            else:
+                # 直连：必须显式用空值覆盖仓库/全局里可能存在的 http.proxy（死代理会让 git 静默失败）
+                push_cmd += [
+                    "-c", "http.proxy=",
+                    "-c", "https.proxy=",
+                    "-c", "http.sslBackend=openssl",
+                    "-c", "http.sslVerify=false",
+                    "-c", "credential.helper=manager",
+                ]
+            push_cmd += ["push", "origin", "main"]
             result = subprocess.run(
-                ["git", "push", "origin", "main"],
-                cwd=repo_dir, capture_output=True, text=True, timeout=60, env=env
+                push_cmd,
+                cwd=repo_dir, capture_output=True, text=True, timeout=90, env=env
             )
             if result.returncode != 0:
-                self.safe_print("error", f"git push 失败: {result.stderr.strip()}")
+                self.safe_print("warning", f"首次 push 失败（rc={result.returncode}）: {(result.stderr or '').strip()[:300]}")
+                # 回退：用 git credential 中已存的令牌直推，绕过凭据管理器在非交互环境的静默失败
+                if self._push_with_stored_token(env, direct=not use_proxy):
+                    self.safe_print("success", "git push 成功（令牌回退路径）！GitHub Actions 将自动构建部署")
+                    self.safe_print("info", "部署地址: https://deardoki.github.io/dhl-shipping-calc")
+                    return True
+                self.safe_print("error", "git push 失败：代理与直连两条通道均不可用")
                 return False
             
             self.safe_print("success", "git push 成功！GitHub Actions 将自动构建部署")
@@ -589,6 +634,54 @@ export const DEFAULT_FUEL_SURCHARGE: FuelSurcharge = {{
             return False
         except Exception as e:
             self.safe_print("error", f"git push 出错: {e}")
+            return False
+
+    def _push_with_stored_token(self, env, direct: bool = True) -> bool:
+        """回退路径：用 git credential 里已保存的令牌直接推送，绕过凭据管理器在非交互环境的静默失败。"""
+        import subprocess
+        try:
+            cred = subprocess.run(
+                ["git", "credential", "fill"],
+                input="protocol=https\nhost=github.com\n\n",
+                capture_output=True, text=True, timeout=30, env=env
+            )
+            token, user = "", ""
+            for line in (cred.stdout or "").splitlines():
+                if line.startswith("password="):
+                    token = line.split("=", 1)[1].strip()
+                elif line.startswith("username="):
+                    user = line.split("=", 1)[1].strip()
+            if not token:
+                self.safe_print("warning", "未取到 GitHub 令牌，回退路径不可用")
+                return False
+
+            rem = subprocess.run(
+                ["git", "remote", "get-url", "origin"],
+                cwd=str(self.project_root), capture_output=True, text=True, timeout=30, env=env
+            )
+            remote = (rem.stdout or "").strip()
+            if not remote:
+                self.safe_print("warning", "未取到 origin 地址，回退路径不可用")
+                return False
+            bare = remote.replace("https://", "").replace("http://", "")
+            if "@" in bare:
+                bare = bare.split("@", 1)[1]
+            url = f"https://{user or 'x-access-token'}:{token}@{bare}"
+
+            cmd = ["git", "-c", "credential.helper=",
+                   "-c", "http.sslBackend=openssl", "-c", "http.sslVerify=false"]
+            if direct:
+                cmd += ["-c", "http.proxy=", "-c", "https.proxy="]
+            cmd += ["push", url, "main"]
+            r = subprocess.run(cmd, cwd=str(self.project_root), capture_output=True, text=True, timeout=90, env=env)
+            out = ((r.stdout or "") + (r.stderr or "")).replace(token, "***").strip()
+            if r.returncode == 0:
+                self.safe_print("info", out[:300])
+                return True
+            self.safe_print("warning", f"令牌回退 push 失败: {out[:300]}")
+            return False
+        except Exception as e:
+            self.safe_print("warning", f"令牌回退路径异常: {e}")
             return False
 
     async def run_fixed(self) -> bool:
